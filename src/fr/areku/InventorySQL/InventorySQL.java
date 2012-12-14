@@ -6,8 +6,11 @@ import java.net.MalformedURLException;
 import java.sql.SQLException;
 import java.util.logging.Level;
 
+import net.milkbowl.vault.permission.Permission;
+
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import fr.areku.InventorySQL.database.CoreSQLProcess;
@@ -17,11 +20,15 @@ public class InventorySQL extends JavaPlugin {
 	private static InventorySQL instance;
 
 	private CoreSQLProcess coreSQLProcess;
-	private PlayerManager playerManager;
+	// private PlayerManager playerManager;
 
 	private UpdateEventListener playerListener;
 	private InventorySQLCommandListener commandListener;
+
+	private Permission perm = null;
+
 	private boolean offlineModePlugin = false;
+	private boolean vaultPlugin = false;
 
 	public Boolean ready = true;
 
@@ -52,8 +59,10 @@ public class InventorySQL extends JavaPlugin {
 		log(Level.SEVERE, "InventorySQL version "
 				+ instance.getDescription().getVersion());
 		log(Level.SEVERE, "Bukkit version " + Bukkit.getVersion());
-		if(InventorySQL.isUsingAuthenticator()){
-			log(Level.SEVERE, "Authenticator version " + Bukkit.getPluginManager().getPlugin("Authenticator").getDescription().getVersion());
+		if (InventorySQL.isUsingAuthenticator()) {
+			log(Level.SEVERE, "Authenticator version "
+					+ Bukkit.getPluginManager().getPlugin("Authenticator")
+							.getDescription().getVersion());
 		}
 		log(Level.SEVERE, "Message: " + m);
 		if (e instanceof SQLException) {
@@ -77,7 +86,7 @@ public class InventorySQL extends JavaPlugin {
 	public void onDisable() {
 		try {
 			getCoreSQLProcess().onDisable();
-			getPlayerManager().saveDatas();
+			PlayerManager.getInstance().saveDatas();
 		} catch (Exception e) {
 			logException(e, "Error while disabling..");
 		}
@@ -99,8 +108,7 @@ public class InventorySQL extends JavaPlugin {
 			this.Disable();
 			return;
 		}
-		this.playerManager = new PlayerManager(new File(getDataFolder(),
-				"players.txt"));
+		new PlayerManager(new File(getDataFolder(), "players.txt"));
 		this.coreSQLProcess = new CoreSQLProcess(this);
 		this.playerListener = new UpdateEventListener(this);
 		this.commandListener = new InventorySQLCommandListener(this);
@@ -115,6 +123,7 @@ public class InventorySQL extends JavaPlugin {
 		reload();
 
 		linkOfflineMode();
+		linkVault();
 	}
 
 	public void linkOfflineMode() {
@@ -131,6 +140,21 @@ public class InventorySQL extends JavaPlugin {
 						.log("Using Authenticator for offline-mode support");
 			}
 		}
+	}
+
+	public void linkVault() {
+		if (getServer().getPluginManager().getPlugin("Vault") == null) {
+			return;
+		}
+		RegisteredServiceProvider<Permission> rsp = getServer()
+				.getServicesManager().getRegistration(Permission.class);
+		if (rsp == null) {
+			return;
+		}
+		perm = rsp.getProvider();
+		vaultPlugin = (perm != null);
+		if (vaultPlugin)
+			InventorySQL.log("You have Vault ? oh great, so I'll use it");
 	}
 
 	public void startMetrics() {
@@ -175,9 +199,17 @@ public class InventorySQL extends JavaPlugin {
 		}
 	}
 
-	public static PlayerManager getPlayerManager() {
-		return instance.playerManager;
+	public static Permission getPerm() {
+		return instance.perm;
 	}
+
+	public static boolean isUsingVault() {
+		return instance.vaultPlugin;
+	}
+
+	/*public static PlayerManager getPlayerManager() {
+		return instance.playerManager;
+	}*/
 
 	public static CoreSQLProcess getCoreSQLProcess() {
 		return instance.coreSQLProcess;
